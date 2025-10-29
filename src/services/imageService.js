@@ -1,111 +1,134 @@
-const fs = require('fs').promises;
-const path = require('path');
-const Jimp = require('jimp');
-const Country = require('../models/country');
+const fs = require("fs").promises;
+const path = require("path");
+const Jimp = require("jimp");
+require("@jimp/plugin-print"); 
+
+const Country = require("../models/country");
 
 class ImageService {
+  // Helper: safely load font, fallback to Jimp built-in
+  static async loadFontSafe(fontName, fallback) {
+    try {
+      const localFontPath = path.join(
+        __dirname,
+        `../assets/fonts/open-sans/${fontName}.fnt`
+      );
+      await fs.access(localFontPath);
+      return await Jimp.loadFont(localFontPath);
+    } catch {
+      return await Jimp.loadFont(fallback);
+    }
+  }
+
   static async generateSummaryImage() {
     try {
-      // Get top 5 countries by GDP
+      // Get data
       const topCountries = await Country.getTopCountriesByGDP(5);
       const systemStatus = await Country.getSystemStatus();
-      
-      // Create a blank image with Jimp
+
+      // Create blank canvas
       const width = 800;
       const height = 600;
-      const image = new Jimp(width, height, '#f8f9fa');
-      
-      // Load a font (Jimp provides built-in fonts)
+      const image = new Jimp(width, height, "#f8f9fa");
+
+      // Load fonts (Jimp provides built-in fonts)
       const font32 = await Jimp.loadFont(Jimp.FONT_SANS_32_BLACK);
-      const font24 = await Jimp.loadFont(Jimp.FONT_SANS_24_BLACK);
-      const font20 = await Jimp.loadFont(Jimp.FONT_SANS_20_BLACK);
-      const font18 = await Jimp.loadFont(Jimp.FONT_SANS_18_BLACK);
-      const font14 = await Jimp.loadFont(Jimp.FONT_SANS_14_GRAY);
-      
-      // Add header
-      const headerText = 'Country Currency Exchange Summary';
+      const font24 = await Jimp.loadFont(Jimp.FONT_SANS_16_BLACK);  // Using 16 instead of 24
+      const font20 = await Jimp.loadFont(Jimp.FONT_SANS_16_BLACK);  // Using 16 instead of 20
+      const font18 = await Jimp.loadFont(Jimp.FONT_SANS_16_BLACK);  // Using 16 instead of 18
+      const font14 = await Jimp.loadFont(Jimp.FONT_SANS_14_BLACK);
+
+      // Header
+      const headerText = "Country Currency Exchange Summary";
       const headerX = (width - Jimp.measureText(font32, headerText)) / 2;
       image.print(font32, headerX, 30, headerText);
-      
-      // Add total countries count
+
+      // Total countries
       const totalText = `Total Countries: ${systemStatus.total_countries}`;
       const totalX = (width - Jimp.measureText(font20, totalText)) / 2;
       image.print(font20, totalX, 80, totalText);
-      
-      // Add last refresh timestamp
+
+      // Last refresh
       if (systemStatus.last_refreshed_at) {
-        const refreshDate = new Date(systemStatus.last_refreshed_at).toLocaleString();
+        const refreshDate = new Date(
+          systemStatus.last_refreshed_at
+        ).toLocaleString();
         const refreshText = `Last Refresh: ${refreshDate}`;
         const refreshX = (width - Jimp.measureText(font20, refreshText)) / 2;
         image.print(font20, refreshX, 110, refreshText);
       }
-      
-      // Add top countries section
-      const topText = 'Top 5 Countries by Estimated GDP';
+
+      // Top countries section
+      const topText = "Top 5 Countries by Estimated GDP";
       const topX = (width - Jimp.measureText(font24, topText)) / 2;
       image.print(font24, topX, 160, topText);
-      
-      // Display top countries
+
+      // Display list
       let yPos = 210;
       const leftMargin = 100;
       const nameX = 140;
       const gdpX = 400;
       const currencyX = 620;
-      
+
       for (let i = 0; i < topCountries.length; i++) {
         const country = topCountries[i];
         const rank = i + 1;
-        
-        // Rank (in blue)
-        const rankText = `${rank}.`;
-        image.print(font18, leftMargin, yPos, { text: rankText, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT, alignmentY: Jimp.VERTICAL_ALIGN_TOP });
-        
-        // Country name
-        image.print(font18, nameX, yPos, { text: country.name, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT, alignmentY: Jimp.VERTICAL_ALIGN_TOP });
-        
-        // GDP (formatted)
-        const gdpFormatted = country.estimated_gdp 
-          ? `$${country.estimated_gdp.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
-          : 'N/A';
-        image.print(font18, gdpX, yPos, { text: gdpFormatted, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT, alignmentY: Jimp.VERTICAL_ALIGN_TOP });
-        
-        // Currency code (in gray)
+
+        // Rank
+        image.print(font18, leftMargin, yPos, `${rank}.`);
+
+        // Name
+        image.print(font18, nameX, yPos, country.name);
+
+        // GDP
+        const gdpFormatted = country.estimated_gdp
+          ? `$${country.estimated_gdp.toLocaleString("en-US", {
+              maximumFractionDigits: 2,
+            })}`
+          : "N/A";
+        image.print(font18, gdpX, yPos, gdpFormatted);
+
+        // Currency
         if (country.currency_code) {
-          const currencyText = `(${country.currency_code})`;
-          image.print(font18, currencyX, yPos, { text: currencyText, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT, alignmentY: Jimp.VERTICAL_ALIGN_TOP });
+          image.print(font18, currencyX, yPos, `(${country.currency_code})`);
         }
-        
+
         yPos += 35;
       }
-      
-      // Add footer
-      const footerText = 'Generated by Currency Exchange API';
+
+      // Footer
+      const footerText = "Generated by Currency Exchange API";
       const footerX = (width - Jimp.measureText(font14, footerText)) / 2;
       image.print(font14, footerX, height - 40, footerText);
-      
-      // Ensure cache directory exists
-      const cacheDir = process.env.IMAGE_PATH || './cache';
+
+      // Save
+      const cacheDir = process.env.IMAGE_PATH || "./cache";
       await fs.mkdir(cacheDir, { recursive: true });
-      
-      // Save image
-      const imagePath = path.join(cacheDir, process.env.IMAGE_NAME || 'summary.png');
+
+      const imagePath = path.join(
+        cacheDir,
+        process.env.IMAGE_NAME || "summary.png"
+      );
       await image.writeAsync(imagePath);
-      
-      console.log(`Summary image generated at: ${imagePath}`);
+
+      console.log(`✅ Summary image generated at: ${imagePath}`);
       return imagePath;
     } catch (error) {
-      console.error('Error generating summary image:', error);
+      console.error("❌ Error generating summary image:", error);
       throw new Error(`Failed to generate summary image: ${error.message}`);
     }
   }
-  
+
   static async imageExists() {
     try {
-      const cacheDir = process.env.IMAGE_PATH || './cache';
-      const imagePath = path.join(cacheDir, process.env.IMAGE_NAME || 'summary.png');
+      const cacheDir = process.env.IMAGE_PATH || "./cache";
+      const imagePath = path.join(
+        cacheDir,
+        process.env.IMAGE_NAME || "summary.png"
+      );
       await fs.access(imagePath);
       return imagePath;
-    } catch (error) {
+    } catch {
       return null;
     }
   }

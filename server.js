@@ -4,7 +4,6 @@ const port = process.env.PORT || 3000;
 // Start the server
 const server = app.listen(port, () => {
   console.log(`🚀 Currency Exchange API running on port ${port}`);
-  console.log(`📖 API Documentation: http://localhost:${port}/`);
   console.log(`🏥 Health Check: http://localhost:${port}/health`);
 });
 

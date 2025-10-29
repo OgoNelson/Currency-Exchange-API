@@ -15,7 +15,7 @@ router.post('/refresh', refreshCountries);
 // GET /countries - Get all countries with optional filtering and sorting
 router.get('/', validateQueryFilters, getAllCountries);
 
-// GET /countries/image - Get summary image (must come before :name route)
+// GET /countries/image - Get summary image 
 router.get('/image', getSummaryImage);
 
 // GET /countries/:name - Get a specific country by name
