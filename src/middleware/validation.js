@@ -3,6 +3,13 @@ const Joi = require('joi');
 const countryNameSchema = Joi.string().required().min(1).max(255);
 
 const validateCountryName = (req, res, next) => {
+  // Check if name parameter exists and is not empty
+  if (!req.params.name || req.params.name.trim() === '') {
+    return res.status(404).json({
+      error: 'Route not found'
+    });
+  }
+  
   const { error } = countryNameSchema.validate(req.params.name);
   
   if (error) {
